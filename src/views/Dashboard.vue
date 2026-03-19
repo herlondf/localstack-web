@@ -128,11 +128,15 @@ import { ListBucketsCommand, ListObjectsV2Command, DeleteObjectsCommand, DeleteB
 import { ListTopicsCommand } from '@aws-sdk/client-sns'
 import { ListQueuesCommand, DeleteQueueCommand } from '@aws-sdk/client-sqs'
 import { ListIdentitiesCommand } from '@aws-sdk/client-ses'
+import { GetApisCommand } from '@aws-sdk/client-apigatewayv2'
+import { GetRestApisCommand } from '@aws-sdk/client-api-gateway'
 import { deleteSesMessage, getSesData } from '@/utils/api.js'
 
 const router = useRouter()
 const appStore = useAppStore()
-const { s3, ses, sns, sqs, dynamodb, lambda, kinesis, kms } = storeToRefs(appStore)
+const { s3, ses, sns, sqs, dynamodb, lambda, kinesis, kms, apigateway, apigatewayv2 } = storeToRefs(appStore)
+
+const enableApigwV2 = (import.meta.env.VITE_ENABLE_APIGW_V2 || 'false') === 'true'
 
 const services = ref([
   {
@@ -191,6 +195,24 @@ const services = ref([
     status: 'inactive',
     stats: null
   },
+  {
+    name: 'API Gateway (REST v1)',
+    icon: 'mdi-api',
+    route: '/apigateway',
+    status: 'inactive',
+    stats: null
+  },
+  ...(enableApigwV2
+    ? [
+        {
+          name: 'API Gateway (v2)',
+          icon: 'mdi-api',
+          route: '/apigateway',
+          status: 'inactive',
+          stats: null
+        }
+      ]
+    : [])
 ])
 
 const quickActions = ref([
@@ -342,6 +364,39 @@ const loadServiceStats = async () => {
     } catch (error) {
       console.error('SQS error:', error)
       services.value[7].status = 'inactive'
+    }
+
+    // API Gateway Stats (REST v1)
+    try {
+      const v1 = await apigateway.value.send(new GetRestApisCommand({ limit: 500 }))
+      services.value[8].status = 'active'
+      services.value[8].stats = {
+        'APIs (v1)': v1.items ? v1.items.length : 0
+      }
+    } catch (error) {
+      console.error('API Gateway v1 error:', error)
+      services.value[8].status = 'inactive'
+    }
+
+    // API Gateway Stats (v2) - optional
+    if (enableApigwV2) {
+      const v2Index = 9
+      try {
+        const v2 = await apigatewayv2.value.send(new GetApisCommand({}))
+        services.value[v2Index].status = 'active'
+        services.value[v2Index].stats = {
+          'APIs (v2)': v2.Items ? v2.Items.length : 0
+        }
+      } catch (error) {
+        const status = error?.$metadata?.httpStatusCode
+        if (status === 501) {
+          services.value[v2Index].status = 'inactive'
+          services.value[v2Index].stats = { 'Suporte': 'Community: 501 (Pro-only)' }
+        } else {
+          console.error('API Gateway v2 error:', error)
+          services.value[v2Index].status = 'inactive'
+        }
+      }
     }
 
   } catch (error) {

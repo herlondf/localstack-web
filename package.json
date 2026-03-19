@@ -10,6 +10,8 @@
     "format": "prettier --write src/"
   },
   "dependencies": {
+    "@aws-sdk/client-api-gateway": "^3.985.0",
+    "@aws-sdk/client-apigatewayv2": "^3.985.0",
     "@aws-sdk/client-dynamodb": "^3.400.0",
     "@aws-sdk/client-kinesis": "^3.400.0",
     "@aws-sdk/client-kms": "^3.400.0",

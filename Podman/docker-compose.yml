@@ -1,0 +1,43 @@
+version: "3.8"
+
+services:
+  localstack:
+    image: localstack/localstack:3.1
+    container_name: localstack
+    ports:
+      - "4566:4566"
+    environment:
+      SERVICES: s3,lambda,dynamodb,sqs,sns
+      DEFAULT_REGION: us-east-1
+      
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: test
+      
+      EXTRA_CORS_ALLOWED_ORIGINS: http://localhost:3000
+
+      DEBUG: "1"
+    volumes:
+      - localstack_data:/var/lib/localstack
+    networks:
+      - localstack-web-net
+
+  localstack-web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        
+        VITE_LOCALSTACK_ENDPOINT: http://localhost:4566
+    container_name: localstack-web
+    ports:
+      - "3000:80"
+    depends_on:
+      - localstack
+    networks:
+      - localstack-web-net
+
+volumes:
+  localstack_data:
+
+networks:
+  localstack-web-net:

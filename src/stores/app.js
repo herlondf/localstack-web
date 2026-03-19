@@ -8,6 +8,8 @@ import { DynamoDBClient } from '@aws-sdk/client-dynamodb'
 import { LambdaClient } from '@aws-sdk/client-lambda'
 import { KinesisClient } from '@aws-sdk/client-kinesis'
 import { KMSClient } from '@aws-sdk/client-kms'
+import { APIGatewayClient } from '@aws-sdk/client-api-gateway'
+import { ApiGatewayV2Client } from '@aws-sdk/client-apigatewayv2'
 
 export const useAppStore = defineStore('app', () => {
   const endpoint = ref(import.meta.env.VITE_LOCALSTACK_ENDPOINT || 'http://localhost:4566')
@@ -22,6 +24,17 @@ export const useAppStore = defineStore('app', () => {
     timeout: 4000
   })
 
+  const normalizeEndpoint = (raw) => {
+    if (!raw) return 'http://localhost:4566'
+
+    // If endpoint is a relative path (e.g. "/localstack"), use same-origin so the browser won't hit CORS.
+    if (raw.startsWith('/')) {
+      return `${window.location.origin}${raw}`
+    }
+
+    return raw
+  }
+
   // AWS SDK v3 Configuration
   const awsConfig = {
     region: region.value,
@@ -29,7 +42,7 @@ export const useAppStore = defineStore('app', () => {
       accessKeyId: accessKeyId.value,
       secretAccessKey: secretAccessKey.value
     },
-    endpoint: endpoint.value,
+    endpoint: normalizeEndpoint(endpoint.value),
     forcePathStyle: true,
     tls: false
   }
@@ -43,11 +56,13 @@ export const useAppStore = defineStore('app', () => {
   const lambda = ref(null)
   const kinesis = ref(null)
   const kms = ref(null)
+  const apigateway = ref(null) // REST API (v1)
+  const apigatewayv2 = ref(null) // HTTP/WebSocket API (v2)
 
   const initializeServices = () => {
     const config = { 
       ...awsConfig, 
-      endpoint: endpoint.value,
+      endpoint: normalizeEndpoint(endpoint.value),
       credentials: {
         accessKeyId: accessKeyId.value,
         secretAccessKey: secretAccessKey.value
@@ -62,6 +77,8 @@ export const useAppStore = defineStore('app', () => {
     lambda.value = new LambdaClient(config)
     kinesis.value = new KinesisClient(config)
     kms.value = new KMSClient(config)
+    apigateway.value = new APIGatewayClient(config)
+    apigatewayv2.value = new ApiGatewayV2Client(config)
   }
 
   const setEndpoint = (newEndpoint) => {
@@ -75,17 +92,20 @@ export const useAppStore = defineStore('app', () => {
     try {
       connectionStatus.value = 'connecting'
 
-      // Try to list S3 buckets as a health check
-      if (!s3.value) initializeServices()
+      // Prefer LocalStack health endpoint because it's stable and avoids AWS SDK + CORS edge cases.
+      const base = normalizeEndpoint(endpoint.value).replace(/\/$/, '')
+      const resp = await fetch(`${base}/_localstack/health`)
 
-      if (s3.value) {
-        const { ListBucketsCommand } = await import('@aws-sdk/client-s3')
-        const command = new ListBucketsCommand({})
-        await s3.value.send(command)
-        connectionStatus.value = 'connected'
-      } else {
+      if (!resp.ok) {
         connectionStatus.value = 'disconnected'
+        return
       }
+
+      await resp.json().catch(() => null)
+      connectionStatus.value = 'connected'
+
+      // Keep clients in sync.
+      if (!s3.value) initializeServices()
     } catch (error) {
       connectionStatus.value = 'disconnected'
       console.error('Connection failed:', error)
@@ -116,6 +136,8 @@ export const useAppStore = defineStore('app', () => {
     lambda,
     kinesis,
     kms,
+    apigateway,
+    apigatewayv2,
     setEndpoint,
     checkConnection,
     showSnackbar,

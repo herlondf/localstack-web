@@ -8,7 +8,8 @@ services:
       - "127.0.0.1:4566:4566"            # LocalStack Edge Proxy
     environment:
       - DEBUG=${DEBUG:-0}
-      - SERVICES=sns,sqs,s3,ses,lambda,dynamodb,kinesis,kms
+      - SERVICES=sns,sqs,s3,ses,lambda,dynamodb,kinesis,kms,apigateway
+      - LOCALSTACK_WEB_ENABLE_APIGW_V2_SAMPLE=0
       - DISABLE_CORS_CHECKS=1
       - DISABLE_CORS_HANDLERS=1
       - SKIP_CORS_PREFLIGHT=1
@@ -24,20 +25,28 @@ services:
     networks:
       - localstack-web-net
 
+  mock-api:
+    image: ealen/echo-server:0.9.2
+    container_name: localstack-web-mock-api
+    networks:
+      - localstack-web-net
+
   localstack-web:
     build:
       context: .
       dockerfile: Dockerfile
       args:
-        - VITE_LOCALSTACK_ENDPOINT=http://localhost:4566
+        - VITE_LOCALSTACK_ENDPOINT=/localstack
         - VITE_AWS_DEFAULT_REGION=us-east-1
         - VITE_AWS_ACCESS_KEY_ID=test
         - VITE_AWS_SECRET_ACCESS_KEY=test
+        - VITE_ENABLE_APIGW_V2=false
     container_name: localstack-web
     ports:
-      - "3000:80"
+      - "6000:80"
     depends_on:
       - localstack
+      - mock-api
     networks:
       - localstack-web-net
     environment:

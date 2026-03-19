@@ -8,6 +8,7 @@ import SNSView from '@/views/SNSView.vue'
 import KMSView from '@/views/KMSView.vue'
 import AboutView from '@/views/AboutView.vue'
 import SESView from '@/views/SESView.vue'
+import ApiGatewayView from '@/views/ApiGatewayView.vue'
 
 export default [
   {
@@ -54,6 +55,11 @@ export default [
     path: '/kms',
     name: 'KMS',
     component: KMSView
+  },
+  {
+    path: '/apigateway',
+    name: 'ApiGateway',
+    component: ApiGatewayView
   },
   {
     path: '/about',
